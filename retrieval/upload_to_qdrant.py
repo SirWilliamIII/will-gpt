@@ -262,7 +262,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload WillGPT conversations to Qdrant")
     parser.add_argument(
         "--collection-file",
-        default="data/processed_conversations.json",
+        default="data/processed/processed_conversations.json",
         help="Path to processed conversations JSON"
     )
     parser.add_argument(

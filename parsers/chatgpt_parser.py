@@ -68,6 +68,10 @@ class ChatGPTParser(BaseLLMParser):
                     current_context['system_interpretations'].append(content)
                     
             elif role == 'user':
+                # SKIP EMPTY USER MESSAGES (image-only messages without text)
+                if not content or not content.strip():
+                    continue
+
                 # Start new chunk
                 current_user_msg = {
                     'content': content,
@@ -75,59 +79,63 @@ class ChatGPTParser(BaseLLMParser):
                     'metadata': metadata,
                     'timestamp': timestamp
                 }
-                
+
                 # Extract user context data (AI's interpretation)
                 user_context = metadata.get('user_context_message_data', {})
                 if user_context:
                     current_context['user_context_data'] = user_context
                     
             elif role == 'assistant':
+                # SKIP EMPTY ASSISTANT MESSAGES (intermediate/reasoning nodes)
+                if not content or not content.strip():
+                    continue
+
                 # Complete the chunk
                 if current_user_msg:
-                    
+
                     # Extract AI interpretations
                     ai_interpretations = {}
                     if current_context.get('user_context_data'):
                         ai_interpretations['user_context_message_data'] = current_context['user_context_data']
-                    
-                    # Extract system context
+
+                    # Extract system context (only if has meaningful data)
                     system_context = {}
                     if current_context.get('system_interpretations'):
-                        system_context['system_interpretations'] = current_context['system_interpretations']
-                    
+                        # Filter out empty system messages
+                        meaningful_sys = [s for s in current_context['system_interpretations'] if s.strip()]
+                        if meaningful_sys:
+                            system_context['system_interpretations'] = meaningful_sys
+
                     # Extract tool usage
                     tool_usage = current_context.get('tool_usage', [])
-                    
+
                     chunk = UniversalChunk(
                         chunk_id=str(uuid.uuid4()),
                         conversation_id=conv_id,
                         platform="chatgpt",
                         timestamp=current_user_msg['timestamp'],
-                        
+
                         user_message=current_user_msg['content'],
                         user_message_type=current_user_msg['message_type'],
-                        
+
                         assistant_message=content,
                         assistant_message_type=msg['content_type'],
                         assistant_model=metadata.get('model_slug'),
-                        
+
                         ai_interpretations=ai_interpretations,
                         system_context=system_context,
                         tool_usage=tool_usage,
-                        
+
                         turn_number=turn_number,
                         has_branches=len(msg.get('children', [])) > 1,
                         conversation_title=title,
-                        
-                        raw_metadata={
-                            'user_metadata': current_user_msg['metadata'],
-                            'assistant_metadata': metadata
-                        }
+
+                        raw_metadata={}  # Removed bloated metadata
                     )
-                    
+
                     chunks.append(chunk)
                     turn_number += 1
-                    
+
                 # Reset for next chunk
                 current_user_msg = None
                 current_context = {

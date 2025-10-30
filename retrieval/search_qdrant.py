@@ -19,10 +19,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from sentence_transformers import SentenceTransformer
 
-# Configuration from .env
-QDRANT_URL = os.getenv("QDRANT_URL", "https://79582a58-07be-4684-b371-a80693088b0a.us-east-1-1.aws.cloud.qdrant.io:6333")
-COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "will-gpt")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+# Configuration - hardcoded (shell env was overriding .env)
+QDRANT_URL = "https://79582a58-07be-4684-b371-a80693088b0a.us-east-1-1.aws.cloud.qdrant.io:6333"
+COLLECTION_NAME = "will-gpt"
+QDRANT_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoyMDc3MTMyMDc2fQ.2kbNJ7tGunrcafxnldpZhmyPXgv689dlfyCQSZ1mYJo"
 MODEL_NAME = "BAAI/bge-m3"
 DEVICE = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -70,7 +70,6 @@ def search_conversations(
         api_key=api_key,
         timeout=60,
         prefer_grpc=False,  # Use HTTP REST API
-        https=True
     )
 
     # Build filters

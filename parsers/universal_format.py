@@ -256,28 +256,95 @@ class ConversationCollection:
             return None, None
         return min(dates), max(dates)
     
-    def save_to_json(self, filepath: str):
-        """Save collection to JSON file"""
-        data = {
-            'chunks': [chunk.to_dict() for chunk in self.chunks],
-            'metadata': {
-                'total_chunks': len(self.chunks),
-                'platforms': self.get_platforms(),
-                'date_range': self.get_date_range(),
-                'created_at': datetime.now().isoformat()
+    def save_to_json(self, filepath: str, compact: bool = True, deduplicate_interpretations: bool = True):
+        """
+        Save collection to JSON file with optimizations
+
+        Args:
+            filepath: Output path
+            compact: Use compact JSON (no indentation) - reduces file size by ~40%
+            deduplicate_interpretations: Store unique interpretations separately and reference by ID
+        """
+
+        if deduplicate_interpretations:
+            # Build interpretation lookup table
+            interpretation_map = {}
+            interpretation_id = 0
+
+            for chunk in self.chunks:
+                if chunk.ai_interpretations:
+                    # Create hashable key from interpretation
+                    interp_key = json.dumps(chunk.ai_interpretations, sort_keys=True, default=str)
+
+                    if interp_key not in interpretation_map:
+                        interpretation_map[interp_key] = f"interp_{interpretation_id}"
+                        interpretation_id += 1
+
+            # Create reverse lookup
+            interpretations_store = {
+                v: json.loads(k) for k, v in interpretation_map.items()
             }
-        }
-        
+
+            # Build chunks with interpretation references
+            optimized_chunks = []
+            for chunk in self.chunks:
+                chunk_dict = chunk.to_dict()
+
+                if chunk.ai_interpretations:
+                    interp_key = json.dumps(chunk.ai_interpretations, sort_keys=True, default=str)
+                    chunk_dict['ai_interpretation_ref'] = interpretation_map[interp_key]
+                    chunk_dict['ai_interpretations'] = None  # Remove duplicate data
+
+                optimized_chunks.append(chunk_dict)
+
+            data = {
+                'chunks': optimized_chunks,
+                'interpretations': interpretations_store,
+                'metadata': {
+                    'total_chunks': len(self.chunks),
+                    'platforms': self.get_platforms(),
+                    'date_range': self.get_date_range(),
+                    'created_at': datetime.now().isoformat(),
+                    'unique_interpretations': len(interpretations_store),
+                    'deduplication_savings': f"{(1 - len(interpretations_store)/len([c for c in self.chunks if c.ai_interpretations]))*100:.1f}%" if any(c.ai_interpretations for c in self.chunks) else "N/A"
+                }
+            }
+        else:
+            data = {
+                'chunks': [chunk.to_dict() for chunk in self.chunks],
+                'metadata': {
+                    'total_chunks': len(self.chunks),
+                    'platforms': self.get_platforms(),
+                    'date_range': self.get_date_range(),
+                    'created_at': datetime.now().isoformat()
+                }
+            }
+
         with open(filepath, 'w') as f:
-            json.dump(data, f, default=str, indent=2)
+            if compact:
+                json.dump(data, f, default=str, separators=(',', ':'))
+            else:
+                json.dump(data, f, default=str, indent=2)
     
     @classmethod
     def load_from_json(cls, filepath: str) -> 'ConversationCollection':
-        """Load collection from JSON file"""
+        """Load collection from JSON file (handles both optimized and legacy formats)"""
         with open(filepath, 'r') as f:
             data = json.load(f)
-        
-        chunks = [UniversalChunk.from_dict(chunk_data) for chunk_data in data['chunks']]
+
+        # Check if this is the optimized format with deduplicated interpretations
+        interpretations_store = data.get('interpretations', {})
+
+        chunks = []
+        for chunk_data in data['chunks']:
+            # Restore interpretations from reference if present
+            if 'ai_interpretation_ref' in chunk_data:
+                interp_ref = chunk_data['ai_interpretation_ref']
+                chunk_data['ai_interpretations'] = interpretations_store.get(interp_ref, {})
+                del chunk_data['ai_interpretation_ref']
+
+            chunks.append(UniversalChunk.from_dict(chunk_data))
+
         return cls(chunks)
 
 # Utility functions for cross-platform analysis

@@ -88,16 +88,16 @@ def test_parser(export_file_path: str):
     # Test 4: Save processed data
     print("\n4. SAVING PROCESSED DATA")
     print("-" * 40)
-    
+
     try:
-        output_path = project_root / "data" / "processed_conversations.json"
+        output_path = project_root / "data" / "processed" / "processed_conversations.json"
         collection.save_to_json(str(output_path))
         print(f"Saved processed data to: {output_path}")
-        
+
         # Test loading
         loaded_collection = collection.load_from_json(str(output_path))
         print(f"Verified: Loaded {len(loaded_collection.chunks)} chunks")
-    
+
     except Exception as e:
         print(f"Save/load failed: {e}")
     
