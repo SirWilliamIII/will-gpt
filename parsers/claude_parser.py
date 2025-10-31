@@ -15,11 +15,13 @@ from .universal_format import UniversalChunk, ConversationCollection
 class ClaudeParser(BaseLLMParser):
     """
     Parser for Claude export files
-    
-    Note: This is a placeholder implementation until we see the actual
-    Claude export format. Will be updated when fresh exports arrive.
+
+    Handles Claude's conversation export format which consists of:
+    - Array of conversations with uuid, name, chat_messages
+    - Messages with sender field (human/assistant)
+    - ISO timestamp format
     """
-    
+
     def __init__(self):
         super().__init__("claude")
     
@@ -56,25 +58,34 @@ class ClaudeParser(BaseLLMParser):
     
     def _parse_conversation(self, conversation: Dict) -> List[UniversalChunk]:
         """Parse a single Claude conversation into chunks"""
-        
-        # Placeholder implementation - update when we see real format
-        conv_id = conversation.get('id', str(uuid.uuid4()))
-        title = conversation.get('title', 'Untitled')
-        
+
+        conv_id = conversation.get('uuid', str(uuid.uuid4()))
+        title = conversation.get('name', 'Untitled')
+
         chunks = []
-        
-        # Look for different possible message structures
-        messages = (conversation.get('messages', []) or 
-                   conversation.get('turns', []) or
-                   conversation.get('exchanges', []))
-        
+
+        # Claude uses 'chat_messages' array with 'sender' field
+        messages = conversation.get('chat_messages', [])
+
         turn_number = 0
-        
-        for i in range(0, len(messages), 2):
-            # Assume alternating user/assistant pattern
-            user_msg = messages[i] if i < len(messages) else None
-            assistant_msg = messages[i + 1] if i + 1 < len(messages) else None
-            
+        i = 0
+
+        # Iterate through messages, pairing human with assistant
+        while i < len(messages):
+            # Find next human message
+            user_msg = None
+            while i < len(messages) and messages[i].get('sender') == 'human':
+                user_msg = messages[i]
+                i += 1
+                break  # Take first human message
+
+            # Find corresponding assistant message
+            assistant_msg = None
+            if i < len(messages) and messages[i].get('sender') == 'assistant':
+                assistant_msg = messages[i]
+                i += 1
+
+            # Create chunk if we have both messages
             if user_msg and assistant_msg:
                 chunk = self._create_chunk_from_messages(
                     user_msg, assistant_msg, conv_id, title, turn_number
@@ -82,7 +93,7 @@ class ClaudeParser(BaseLLMParser):
                 if chunk:
                     chunks.append(chunk)
                     turn_number += 1
-        
+
         return chunks
     
     def _create_chunk_from_messages(self, user_msg: Dict, assistant_msg: Dict, 
@@ -127,46 +138,47 @@ class ClaudeParser(BaseLLMParser):
             }
         )
     
-    def _extract_message_content(self, message: Dict) -> str:
+    def _extract_message_content(self, message: Dict) -> Optional[str]:
         """Extract content from a Claude message"""
-        
-        # Try different possible content fields
-        content = (message.get('content') or 
-                  message.get('text') or
-                  message.get('message') or
-                  message.get('body', ''))
-        
-        if isinstance(content, list):
-            # Handle content blocks
-            text_parts = []
-            for block in content:
-                if isinstance(block, dict):
-                    text_parts.append(block.get('text', ''))
-                else:
-                    text_parts.append(str(block))
-            return '\n'.join(text_parts)
-        
-        return str(content)
+
+        # Primary: use 'text' field directly
+        text = message.get('text', '').strip()
+
+        # If text is empty, try parsing content array
+        if not text:
+            content = message.get('content', [])
+            if isinstance(content, list):
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        block_text = block.get('text', '').strip()
+                        if block_text:
+                            text_parts.append(block_text)
+                text = '\n'.join(text_parts)
+
+        # Skip empty messages (similar to ChatGPT optimization)
+        if not text:
+            return None
+
+        return text
     
     def _extract_timestamp(self, message: Dict) -> Optional[datetime]:
         """Extract timestamp from Claude message"""
-        
-        # Try different timestamp fields
-        timestamp_fields = ['timestamp', 'created_at', 'date', 'time']
-        
-        for field in timestamp_fields:
-            if field in message:
-                timestamp = message[field]
-                
-                if isinstance(timestamp, (int, float)):
-                    return datetime.fromtimestamp(timestamp)
-                elif isinstance(timestamp, str):
-                    try:
-                        # Try ISO format
-                        return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                    except:
-                        continue
-        
+
+        # Claude uses 'created_at' field with ISO format
+        timestamp_str = message.get('created_at', '')
+
+        if timestamp_str:
+            try:
+                # Parse ISO format: "2024-06-20T23:33:34.483665Z"
+                return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            except Exception as e:
+                # Fallback: try as unix timestamp
+                try:
+                    return datetime.fromtimestamp(float(timestamp_str))
+                except:
+                    pass
+
         return None
     
     def extract_ai_interpretations(self, raw_data: Dict) -> Dict[str, Any]:
@@ -212,44 +224,34 @@ class ClaudeParser(BaseLLMParser):
     
     def _validate_data_structure(self, data) -> bool:
         """Validate Claude export structure"""
-        
-        # This is a placeholder - will be updated when we see real format
-        
+
         if isinstance(data, list):
             if not data:
-                return True
-            
-            # Check if it looks like a conversation list
+                return False
+
+            # Check if it looks like a Claude conversation list
             first_item = data[0]
             if isinstance(first_item, dict):
-                # Look for conversation-like fields
-                conversation_fields = ['messages', 'turns', 'exchanges', 'id', 'title']
-                if any(field in first_item for field in conversation_fields):
+                # Claude conversations have: uuid, name, chat_messages
+                required_fields = ['uuid', 'chat_messages']
+                if all(field in first_item for field in required_fields):
                     return True
-        
-        elif isinstance(data, dict):
-            # Single conversation or wrapper
-            conversation_fields = ['messages', 'turns', 'exchanges', 'conversations']
-            if any(field in data for field in conversation_fields):
-                return True
-        
+
         return False
     
     def _extract_platform_metadata(self, data) -> Dict[str, Any]:
         """Extract Claude-specific metadata"""
-        
-        # Placeholder implementation
-        metadata = {
-            'format_detected': 'claude_placeholder',
-            'needs_implementation': True
+
+        metadata: Dict[str, Any] = {
+            'format_detected': 'claude_export_v1',
+            'export_format': 'conversation_array'
         }
-        
+
         if isinstance(data, list):
             metadata['total_conversations'] = len(data)
-        elif isinstance(data, dict):
-            if 'conversations' in data:
-                metadata['total_conversations'] = len(data['conversations'])
-            else:
-                metadata['total_conversations'] = 1
-        
+            metadata['total_messages'] = sum(
+                len(conv.get('chat_messages', []))
+                for conv in data
+            )
+
         return metadata
