@@ -48,7 +48,7 @@ def search_conversations(
     Args:
         query: Search query text
         limit: Number of results to return
-        platform_filter: Filter by platform (chatgpt, claude)
+        platform_filter: Filter by platform (chatgpt, claude, claude-projects)
         with_interpretations_only: Only return chunks with AI interpretations
         date_from: Filter by date (ISO format)
         date_to: Filter by date (ISO format)
@@ -238,7 +238,9 @@ def search_conversations(
         payload = result.payload if result.payload is not None else {}
         print(f"Title: {payload.get('conversation_title', 'Untitled')}")
         print(f"Platform: {payload.get('platform', 'unknown')}")
-        print(f"Date: {payload.get('timestamp', 'unknown')}")
+        # Use ISO timestamp for display (more readable), fallback to float if needed
+        timestamp_display = payload.get('timestamp_iso') or payload.get('timestamp', 'unknown')
+        print(f"Date: {timestamp_display}")
         print(f"Turn: {payload.get('turn_number', 0)}")
 
         # User message
@@ -278,7 +280,7 @@ def interactive_search(api_key: Optional[str] = None):
     print("="*70)
     print("\nCommands:")
     print("  /quit - Exit")
-    print("  /platform [chatgpt|claude] - Filter by platform")
+    print("  /platform [chatgpt|claude|claude-projects] - Filter by platform")
     print("  /limit [number] - Set result limit")
     print("  /interpretations - Only show chunks with AI interpretations")
     print("  /metadata <key>:<value> - Filter by metadata")
@@ -314,7 +316,6 @@ def interactive_search(api_key: Optional[str] = None):
             if query.startswith("/limit"):
                 parts = query.split()
                 if len(parts) > 1:
-                    breakpoint()
                     limit = int(parts[1])
                     print(f"✓ Limit set to: {limit}")
                 continue
@@ -376,7 +377,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--platform",
-        choices=["chatgpt", "claude"],
+        choices=["chatgpt", "claude", "claude-projects"],
         help="Filter by platform"
     )
     parser.add_argument(

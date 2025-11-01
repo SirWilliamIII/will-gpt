@@ -89,7 +89,7 @@ def create_indexes():
     print("Index creation complete!")
     print("="*70)
     print("\nYou can now use these filters in search_qdrant.py:")
-    print("  --platform [chatgpt|claude]")
+    print("  --platform [chatgpt|claude|claude-projects]")
     print("  --interpretations")
     print("  Date filtering (date_from, date_to) in code")
     print("  --metadata-filter for other fields")
