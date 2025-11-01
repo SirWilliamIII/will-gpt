@@ -8,5 +8,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "qdrant-client>=1.15.1",
     "sentence-transformers>=5.1.2",
+    "FlagEmbedding>=1.2.0",
     "tqdm>=4.67.1",
+    "black>=25.9.0",
 ]

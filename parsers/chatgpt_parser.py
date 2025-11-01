@@ -6,7 +6,7 @@ Converts ChatGPT export format to UniversalChunk objects
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
 from .base_parser import BaseLLMParser
@@ -220,7 +220,9 @@ class ChatGPTParser(BaseLLMParser):
         
         timestamp = message.get('create_time')
         if timestamp:
-            timestamp = datetime.fromtimestamp(timestamp)
+            # Create timezone-aware datetime in UTC (best practice for 2025)
+            # This ensures consistency with Claude parser which uses ISO format with timezone
+            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc)
         
         return {
             'role': role,
@@ -315,7 +317,8 @@ class ChatGPTParser(BaseLLMParser):
                     # Track date range
                     create_time = message.get('create_time')
                     if create_time:
-                        dt = datetime.fromtimestamp(create_time)
+                        # Use timezone-aware datetime in UTC for consistency
+                        dt = datetime.fromtimestamp(create_time, tz=timezone.utc)
                         if date_range[0] is None or dt < date_range[0]:
                             date_range[0] = dt
                         if date_range[1] is None or dt > date_range[1]:

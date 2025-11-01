@@ -9,18 +9,23 @@ from qdrant_client import QdrantClient
 
 load_dotenv()
 
-QDRANT_URL = "https://79582a58-07be-4684-b371-a80693088b0a.us-east-1-1.aws.cloud.qdrant.io:6333"
-API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoyMDc3MTMyMDc2fQ.2kbNJ7tGunrcafxnldpZhmyPXgv689dlfyCQSZ1mYJo"
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+QDRANT_URL = os.getenv("QDRANT_URL")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME")
+MODEL_NAME = os.getenv("MODEL_NAME")
 
 print("Testing Qdrant connection...")
 print(f"URL: {QDRANT_URL}")
-print(f"API Key: {API_KEY[:10]}... (length: {len(API_KEY)})")
+if QDRANT_API_KEY is not None:
+    print(f"API Key: {QDRANT_API_KEY[:10]}... (length: {len(QDRANT_API_KEY)})")
+else:
+    print("API Key: None")
 print()
 
 try:
     client = QdrantClient(
         url=QDRANT_URL,
-        api_key=API_KEY,
+        api_key=QDRANT_API_KEY,
         timeout=30,
         prefer_grpc=False,  # Use HTTP REST API instead of gRPC
     )

@@ -228,9 +228,21 @@ class ConversationCollection:
         """Get earliest and latest conversation dates"""
         if not self.chunks:
             return None, None
-        
+
         dates = [chunk.timestamp for chunk in self.chunks if chunk.timestamp]
-        return min(dates), max(dates)
+        if not dates:
+            return None, None
+
+        # Normalize all dates to naive (remove timezone info for comparison)
+        normalized_dates = []
+        for d in dates:
+            if d.tzinfo is not None:
+                # Convert to naive by removing timezone
+                normalized_dates.append(d.replace(tzinfo=None))
+            else:
+                normalized_dates.append(d)
+
+        return min(normalized_dates), max(normalized_dates)
     
     def get_platform_stats(self) -> Dict[str, Dict]:
         """Get statistics by platform"""
@@ -254,7 +266,18 @@ class ConversationCollection:
         dates = [c.timestamp for c in chunks if c.timestamp]
         if not dates:
             return None, None
-        return min(dates), max(dates)
+
+        # Normalize all dates to naive (remove timezone info for comparison)
+        # This handles mixed timezone-aware and naive datetimes from different parsers
+        normalized_dates = []
+        for d in dates:
+            if d.tzinfo is not None:
+                # Convert to naive by removing timezone
+                normalized_dates.append(d.replace(tzinfo=None))
+            else:
+                normalized_dates.append(d)
+
+        return min(normalized_dates), max(normalized_dates)
     
     def save_to_json(self, filepath: str, compact: bool = True, deduplicate_interpretations: bool = True):
         """

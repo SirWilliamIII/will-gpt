@@ -8,10 +8,12 @@ from .universal_format import UniversalChunk, ConversationCollection
 from .base_parser import BaseLLMParser, ParserRegistry, parser_registry
 from .chatgpt_parser import ChatGPTParser
 from .claude_parser import ClaudeParser
+from .claude_projects_parser import ClaudeProjectsParser
 
 # Auto-register all parsers
 parser_registry.register_parser(ChatGPTParser, ['.json'])
 parser_registry.register_parser(ClaudeParser, ['.json'])
+parser_registry.register_parser(ClaudeProjectsParser, ['.json'])
 
 # Convenience functions
 def parse_export(file_path: str) -> ConversationCollection:
@@ -63,6 +65,7 @@ __all__ = [
     'BaseLLMParser',
     'ChatGPTParser',
     'ClaudeParser',
+    'ClaudeProjectsParser',
     'parser_registry',
     'parse_export',
     'get_export_metadata',

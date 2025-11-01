@@ -3,6 +3,7 @@ python-dateutil>=2.8.0
 pandas>=2.0.0
 numpy>=1.24.0
 sentence-transformers>=2.2.0
+FlagEmbedding>=1.2.0
 torch>=2.0.0
 transformers>=4.30.0
 tokenizers>=0.13.0

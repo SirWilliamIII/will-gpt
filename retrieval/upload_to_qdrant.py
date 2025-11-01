@@ -7,7 +7,7 @@ import sys
 import os
 from pathlib import Path
 from tqdm import tqdm
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import torch
 from dotenv import load_dotenv
 
@@ -26,22 +26,20 @@ from qdrant_client.models import (
     PointStruct,
     SparseVectorParams,
     SparseIndexParams,
+    SparseVector,
 )
-from sentence_transformers import SentenceTransformer
+from FlagEmbedding import BGEM3FlagModel
 
-# Configuration - hardcoded
-QDRANT_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoyMDc3MTMyMDc2fQ.2kbNJ7tGunrcafxnldpZhmyPXgv689dlfyCQSZ1mYJo"
-QDRANT_URL = "https://79582a58-07be-4684-b371-a80693088b0a.us-east-1-1.aws.cloud.qdrant.io:6333"
-COLLECTION_NAME = "will-gpt"
-EMBEDDING_MODE = "balanced"  # Options: balanced, user_focused, minimal, full
-BATCH_SIZE = 8  # Reduced from 100 to avoid OOM
-
-# BGE-M3 configuration
-MODEL_NAME = "BAAI/bge-m3"
-DEVICE = "cpu"  # Use CPU to avoid MPS OOM (M4 has limited GPU memory)
+QDRANT_API_KEY=os.getenv('QDRANT_API_KEY')
+QDRANT_URL=os.getenv('QDRANT_URL')
+COLLECTION_NAME=os.getenv('COLLECTION_NAME')
+MODEL_NAME=os.getenv('MODEL_NAME')
+EMBEDDING_MODE = "balanced"
+DEVICE = "cpu"
+BATCH_SIZE= 4
 
 
-def setup_qdrant_collection(client: QdrantClient, collection_name: str, vector_size: int):
+def setup_qdrant_collection(client: QdrantClient, collection_name: str, vector_size: int, auto_confirm: bool = False):
     """
     Create or recreate Qdrant collection with hybrid search support
 
@@ -56,10 +54,14 @@ def setup_qdrant_collection(client: QdrantClient, collection_name: str, vector_s
 
     if collection_exists:
         print(f"\n⚠️  Collection '{collection_name}' already exists!")
-        response = input("Delete and recreate? (yes/no): ")
-        if response.lower() != 'yes':
-            print("Aborting. Use existing collection or choose different name.")
-            sys.exit(0)
+
+        if not auto_confirm:
+            response = input("Delete and recreate? (yes/no): ")
+            if response.lower() != 'yes':
+                print("Aborting. Use existing collection or choose different name.")
+                sys.exit(0)
+        else:
+            print("Auto-confirm enabled - deleting and recreating...")
 
         print(f"Deleting existing collection '{collection_name}'...")
         client.delete_collection(collection_name)
@@ -86,27 +88,29 @@ def setup_qdrant_collection(client: QdrantClient, collection_name: str, vector_s
     print(f"✅ Collection created successfully!")
 
 
-def generate_bge_m3_embeddings(model: SentenceTransformer, texts: List[str]) -> tuple:
+def generate_bge_m3_embeddings(model: BGEM3FlagModel, texts: List[str]) -> tuple:
     """
     Generate BGE-M3 hybrid embeddings (dense + sparse)
 
     Returns:
-        tuple: (dense_embeddings, sparse_embeddings)
+        tuple: (dense_embeddings, sparse_embeddings_list)
+            - dense_embeddings: numpy array of shape [batch_size, 1024]
+            - sparse_embeddings_list: list of dicts with token_id: weight mappings
     """
 
     # BGE-M3 encode method returns dict with 'dense_vecs' and 'lexical_weights'
-    embeddings = model.encode(
+    output = model.encode(
         texts,
-        show_progress_bar=False,
-        convert_to_tensor=True,
+        return_dense=True,
+        return_sparse=True,  # Enable sparse (lexical) vectors
+        return_colbert_vecs=False,
         batch_size=BATCH_SIZE,
     )
 
-    # For BGE-M3, we get dense vectors directly
-    # Sparse vectors require special encoding (lexical matching)
-    # For now, we'll use dense only and add sparse later if needed
+    dense_vecs = output['dense_vecs']  # Shape: [batch_size, 1024]
+    lexical_weights = output['lexical_weights']  # List of dicts: [{'token_id': weight, ...}]
 
-    return embeddings, None
+    return dense_vecs, lexical_weights
 
 
 def chunk_to_payload(chunk) -> Dict[str, Any]:
@@ -156,7 +160,8 @@ def upload_conversations_to_qdrant(
     qdrant_url: str,
     collection_name: str,
     embedding_mode: str = "balanced",
-    api_key: str = None,
+    api_key: Optional[str] = None,
+    auto_confirm: bool = False,
 ):
     """
     Main upload function: Load conversations, generate embeddings, upload to Qdrant
@@ -172,11 +177,14 @@ def upload_conversations_to_qdrant(
     print(f"   ✅ Loaded {len(collection.chunks)} conversation chunks")
 
     # Initialize BGE-M3 model
+    if not MODEL_NAME:
+        raise ValueError("❌ Error: MODEL_NAME is not set. Please set MODEL_NAME in your .env file or environment.")
     print(f"\n2. Loading BGE-M3 model ({MODEL_NAME})...")
     print(f"   Device: {DEVICE}")
-    model = SentenceTransformer(MODEL_NAME, device=DEVICE)
-    vector_size = model.get_sentence_embedding_dimension()
-    print(f"   ✅ Model loaded (vector size: {vector_size})")
+    use_fp16 = DEVICE in ['cuda', 'mps']  # Use FP16 for GPU, FP32 for CPU
+    model = BGEM3FlagModel(MODEL_NAME, use_fp16=use_fp16, device=DEVICE)
+    vector_size = 1024  # BGE-M3 dense vector dimension
+    print(f"   ✅ Model loaded (vector size: {vector_size}, FP16: {use_fp16})")
 
     # Connect to Qdrant
     print(f"\n3. Connecting to Qdrant...")
@@ -190,7 +198,7 @@ def upload_conversations_to_qdrant(
     print(f"   ✅ Connected")
 
     # Setup collection
-    setup_qdrant_collection(client, collection_name, vector_size)
+    setup_qdrant_collection(client, collection_name, vector_size, auto_confirm=auto_confirm)
 
     # Generate embeddings and upload in batches
     print(f"\n4. Generating embeddings and uploading (mode: {embedding_mode})...")
@@ -208,17 +216,27 @@ def upload_conversations_to_qdrant(
 
         # Process batch when full
         if len(batch_texts) >= BATCH_SIZE or idx == len(collection.chunks) - 1:
-            # Generate embeddings
-            embeddings, _ = generate_bge_m3_embeddings(model, batch_texts)
+            # Generate embeddings (dense + sparse)
+            dense_embeddings, sparse_embeddings = generate_bge_m3_embeddings(model, batch_texts)
 
             # Create points
-            for i, (emb, ch) in enumerate(zip(embeddings, batch_chunks)):
+            for i, (dense_emb, sparse_weights, ch) in enumerate(zip(dense_embeddings, sparse_embeddings, batch_chunks)):
                 point_id = len(points) + i
+
+                # Convert sparse weights to Qdrant SparseVector format
+                if sparse_weights:
+                    # sparse_weights is a dict like {token_id: weight, ...}
+                    indices = list(sparse_weights.keys())
+                    values = list(sparse_weights.values())
+                    sparse_vector = SparseVector(indices=indices, values=values)
+                else:
+                    sparse_vector = SparseVector(indices=[], values=[])
 
                 point = PointStruct(
                     id=point_id,
                     vector={
-                        "dense": emb.cpu().tolist() if isinstance(emb, torch.Tensor) else emb.tolist()
+                        "dense": dense_emb.tolist() if hasattr(dense_emb, 'tolist') else dense_emb,
+                        "sparse": sparse_vector
                     },
                     payload=chunk_to_payload(ch)
                 )

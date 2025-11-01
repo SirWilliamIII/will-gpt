@@ -131,11 +131,8 @@ class ClaudeParser(BaseLLMParser):
             
             turn_number=turn_number,
             conversation_title=title,
-            
-            raw_metadata={
-                'user_raw': user_msg,
-                'assistant_raw': assistant_msg
-            }
+
+            raw_metadata={}  # Removed bloated metadata (saves ~114 MB)
         )
     
     def _extract_message_content(self, message: Dict) -> Optional[str]:
@@ -172,7 +169,7 @@ class ClaudeParser(BaseLLMParser):
             try:
                 # Parse ISO format: "2024-06-20T23:33:34.483665Z"
                 return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            except Exception as e:
+            except:
                 # Fallback: try as unix timestamp
                 try:
                     return datetime.fromtimestamp(float(timestamp_str))
