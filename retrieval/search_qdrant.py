@@ -411,8 +411,8 @@ if __name__ == "__main__":
             platform_filter=args.platform,
             with_interpretations_only=args.interpretations,
             metadata_filter=args.metadata_filter,
-            api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoyMDc3MTMyMDc2fQ.2kbNJ7tGunrcafxnldpZhmyPXgv689dlfyCQSZ1mYJo"
+            api_key=args.api_key
         )
     else:
         # Interactive mode
-        interactive_search(api_key='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoyMDc3MTMyMDc2fQ.2kbNJ7tGunrcafxnldpZhmyPXgv689dlfyCQSZ1mYJo')
+        interactive_search(api_key=args.api_key)
