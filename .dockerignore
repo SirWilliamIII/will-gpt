@@ -1,0 +1,53 @@
+# Git files
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv
+venv/
+ENV/
+
+# Data files (will be mounted as volumes)
+data/raw/*
+data/processed/*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+
+# Claude Code sessions
+claude-2025-*/
+
+# MacOS files
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Model cache (will be mounted as volume)
+.cache/
+
+# Documentation
+README.md
+CLAUDE.md
+
+# Logs
+*.log

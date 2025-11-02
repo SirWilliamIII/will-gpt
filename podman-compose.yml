@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Python application service
+  willgpt-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: willgpt-app
+    volumes:
+      # Mount source code for development
+      - ./parsers:/app/parsers:Z
+      - ./retrieval:/app/retrieval:Z
+      - ./notebooks:/app/notebooks:Z
+      - ./data:/app/data:Z
+      # Mount individual scripts
+      - ./merge_and_upload.py:/app/merge_and_upload.py:Z
+      - ./tests/test_parser.py:/app/test_parser.py:Z
+      - ./tests/test_qdrant_connection.py:/app/test_qdrant_connection.py:Z
+      # Cache for HuggingFace models
+      - huggingface-cache:/root/.cache/huggingface:Z
+    environment:
+      # Qdrant configuration for cloud instance
+      - QDRANT_URL=https://79582a58-07be-4684-b371-a80693088b0a.us-east-1-1.aws.cloud.qdrant.io:6333
+      - QDRANT_COLLECTION_NAME=will-gpt
+      # Optional: Load from .env file
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+    env_file:
+      - .env
+    command: /bin/bash -c "tail -f /dev/null"  # Keep container running
+    stdin_open: true
+    tty: true
+
+  # Optional: Jupyter notebook service for local development
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: willgpt-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks:Z
+      - ./data:/app/data:Z
+      - ./parsers:/app/parsers:Z
+      - ./retrieval:/app/retrieval:Z
+      - huggingface-cache:/root/.cache/huggingface:Z
+    environment:
+      - QDRANT_URL=https://79582a58-07be-4684-b371-a80693088b0a.us-east-1-1.aws.cloud.qdrant.io:6333
+      - QDRANT_COLLECTION_NAME=will-gpt
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - JUPYTER_ENABLE_LAB=yes
+    env_file:
+      - .env
+    command: >
+      bash -c "jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --NotebookApp.token=''
+      --NotebookApp.password=''"
+    profiles:
+      - jupyter  # Only start with: podman-compose --profile jupyter up
+
+volumes:
+  huggingface-cache:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
