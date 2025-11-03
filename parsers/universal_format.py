@@ -37,8 +37,29 @@ BGE-M3 produces three embedding types from one forward pass:
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+from pathlib import Path
 import uuid
 import json
+
+# Maximum file size to load (500 MB default)
+MAX_FILE_SIZE_MB = 500
+
+
+def _safe_load_json(file_path: str, max_size_mb: int = MAX_FILE_SIZE_MB) -> Any:
+    """
+    Safely load JSON file with size validation.
+    Internal version for universal_format to avoid circular imports.
+    """
+    file_size_mb = Path(file_path).stat().st_size / (1024 * 1024)
+
+    if file_size_mb > max_size_mb:
+        raise ValueError(
+            f"File {file_path} is too large ({file_size_mb:.1f} MB). "
+            f"Maximum allowed: {max_size_mb} MB."
+        )
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 @dataclass
 class UniversalChunk:
@@ -352,8 +373,7 @@ class ConversationCollection:
     @classmethod
     def load_from_json(cls, filepath: str) -> 'ConversationCollection':
         """Load collection from JSON file (handles both optimized and legacy formats)"""
-        with open(filepath, 'r') as f:
-            data = json.load(f)
+        data = _safe_load_json(filepath)
 
         # Check if this is the optimized format with deduplicated interpretations
         interpretations_store = data.get('interpretations', {})

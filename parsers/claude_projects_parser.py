@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-from .base_parser import BaseLLMParser
+from .base_parser import BaseLLMParser, safe_load_json
 from .universal_format import UniversalChunk, ConversationCollection
 
 
@@ -33,10 +33,9 @@ class ClaudeProjectsParser(BaseLLMParser):
     
     def parse_export(self, file_path: str) -> ConversationCollection:
         """Parse Claude Projects export into UniversalChunk objects"""
-        
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
+
+        data = safe_load_json(file_path)
+
         collection = ConversationCollection()
         
         if not isinstance(data, list):

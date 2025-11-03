@@ -9,33 +9,35 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
-from .base_parser import BaseLLMParser
+from .base_parser import BaseLLMParser, safe_load_json
 from .universal_format import UniversalChunk, ConversationCollection
 
 class ChatGPTParser(BaseLLMParser):
     """
     Parser for ChatGPT export files
-    
+
     Handles the complex nested UUID tree structure and extracts
     both conversation content and AI interpretations.
     """
-    
+
+    # Maximum recursion depth for tree traversal (prevents stack overflow)
+    MAX_TREE_DEPTH = 10000
+
     def __init__(self):
         super().__init__("chatgpt")
     
     def parse_export(self, file_path: str) -> ConversationCollection:
         """Parse ChatGPT export into UniversalChunk objects"""
-        
-        with open(file_path, 'r', encoding='utf-8') as f:
-            conversations = json.load(f)
-        
+
+        conversations = safe_load_json(file_path)
+
         collection = ConversationCollection()
-        
+
         for conv in conversations:
             chunks = self._parse_conversation(conv)
             for chunk in chunks:
                 collection.add_chunk(chunk)
-        
+
         return collection
     
     def _parse_conversation(self, conversation: Dict) -> List[UniversalChunk]:
@@ -153,44 +155,62 @@ class ChatGPTParser(BaseLLMParser):
     
     def _extract_messages_in_order(self, mapping: Dict) -> List[Dict]:
         """Extract messages from ChatGPT's tree structure in chronological order"""
-        
+
         messages = []
-        
+
         # Find root node (no parent)
         root_id = None
         for msg_id, msg_data in mapping.items():
             if msg_data.get('parent') is None:
                 root_id = msg_id
                 break
-                
+
         if not root_id:
             return messages
-            
-        # Traverse the conversation tree
+
+        # Traverse the conversation tree with depth limit
         visited = set()
-        self._traverse_conversation_tree(mapping, root_id, messages, visited)
-        
+        self._traverse_conversation_tree(mapping, root_id, messages, visited, depth=0)
+
         return messages
     
-    def _traverse_conversation_tree(self, mapping: Dict, node_id: str, messages: List, visited: set):
-        """Recursively traverse ChatGPT's conversation tree"""
-        
+    def _traverse_conversation_tree(self, mapping: Dict, node_id: str, messages: List, visited: set, depth: int = 0):
+        """
+        Recursively traverse ChatGPT's conversation tree with depth limit.
+
+        Args:
+            mapping: Node ID to node data mapping
+            node_id: Current node ID to process
+            messages: List to append messages to
+            visited: Set of visited node IDs
+            depth: Current recursion depth (prevents stack overflow)
+
+        Raises:
+            ValueError: If recursion depth exceeds MAX_TREE_DEPTH
+        """
+        # Prevent stack overflow from malicious/malformed data
+        if depth > self.MAX_TREE_DEPTH:
+            raise ValueError(
+                f"Conversation tree exceeded maximum depth ({self.MAX_TREE_DEPTH}). "
+                f"This may indicate malformed or malicious data."
+            )
+
         if node_id in visited or node_id not in mapping:
             return
-            
+
         visited.add(node_id)
         node = mapping[node_id]
-        
+
         # Extract message if present
         if node.get('message'):
             msg = self._extract_message_data(node['message'])
             if msg:
                 messages.append(msg)
-        
+
         # Follow children (main conversation path)
         children = node.get('children', [])
         for child_id in children:
-            self._traverse_conversation_tree(mapping, child_id, messages, visited)
+            self._traverse_conversation_tree(mapping, child_id, messages, visited, depth + 1)
     
     def _extract_message_data(self, message: Dict) -> Optional[Dict]:
         """Extract relevant data from a ChatGPT message"""

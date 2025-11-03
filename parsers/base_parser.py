@@ -11,6 +11,41 @@ import json
 
 from .universal_format import UniversalChunk, ConversationCollection
 
+# Maximum file size to load (500 MB default, adjustable)
+MAX_FILE_SIZE_MB = 500
+
+
+def safe_load_json(file_path: str, max_size_mb: int = MAX_FILE_SIZE_MB) -> Any:
+    """
+    Safely load JSON file with size validation to prevent memory exhaustion.
+
+    Args:
+        file_path: Path to JSON file
+        max_size_mb: Maximum file size in MB (default: 500 MB)
+
+    Returns:
+        Parsed JSON data
+
+    Raises:
+        ValueError: If file is too large or cannot be parsed
+    """
+    file_size_mb = Path(file_path).stat().st_size / (1024 * 1024)
+
+    if file_size_mb > max_size_mb:
+        raise ValueError(
+            f"File {file_path} is too large ({file_size_mb:.1f} MB). "
+            f"Maximum allowed: {max_size_mb} MB. "
+            f"This prevents memory exhaustion attacks."
+        )
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in {file_path}: {e}")
+    except Exception as e:
+        raise ValueError(f"Error loading {file_path}: {e}")
+
 class BaseLLMParser(ABC):
     """
     Abstract base class for all LLM platform parsers
@@ -67,16 +102,15 @@ class BaseLLMParser(ABC):
     def validate_export_format(self, file_path: str) -> bool:
         """
         Validate that the file is in the expected format for this parser
-        
+
         Args:
             file_path: Path to export file
-            
+
         Returns:
             True if format is valid, False otherwise
         """
         try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
+            data = safe_load_json(file_path)
             return self._validate_data_structure(data)
         except Exception:
             return False
@@ -89,30 +123,29 @@ class BaseLLMParser(ABC):
     def get_export_metadata(self, file_path: str) -> Dict[str, Any]:
         """
         Extract metadata about the export (date range, conversation count, etc.)
-        
+
         Args:
             file_path: Path to export file
-            
+
         Returns:
             Dictionary with export metadata
         """
         file_size = Path(file_path).stat().st_size / 1024 / 1024  # MB
-        
+
         try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            
+            data = safe_load_json(file_path)
+
             metadata = {
                 'platform': self.platform_name,
                 'file_size_mb': round(file_size, 1),
                 'export_structure': type(data).__name__,
             }
-            
+
             # Platform-specific metadata extraction
             metadata.update(self._extract_platform_metadata(data))
-            
+
             return metadata
-            
+
         except Exception as e:
             return {
                 'platform': self.platform_name,
