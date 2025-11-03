@@ -84,15 +84,55 @@ def create_indexes():
         print("✓ 'conversation_title' index created successfully")
     except Exception as e:
         print(f"✗ Error creating 'conversation_title' index: {e}")
-    
+
+    # Index for conversation_id field (keyword) - REQUIRED FOR GROUPING
+    print("\nCreating index for 'conversation_id' field...")
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="conversation_id",
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+        print("✓ 'conversation_id' index created successfully")
+    except Exception as e:
+        print(f"✗ Error creating 'conversation_id' index: {e}")
+
+    # Index for assistant_model field (keyword) - REQUIRED FOR GROUPING
+    print("\nCreating index for 'assistant_model' field...")
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="assistant_model",
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+        print("✓ 'assistant_model' index created successfully")
+    except Exception as e:
+        print(f"✗ Error creating 'assistant_model' index: {e}")
+
+    # Index for turn_number field (integer) - REQUIRED FOR ORDER_BY
+    print("\nCreating index for 'turn_number' field...")
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="turn_number",
+            field_schema=PayloadSchemaType.INTEGER,
+        )
+        print("✓ 'turn_number' index created successfully")
+    except Exception as e:
+        print(f"✗ Error creating 'turn_number' index: {e}")
+
     print("\n" + "="*70)
     print("Index creation complete!")
     print("="*70)
-    print("\nYou can now use these filters in search_qdrant.py:")
-    print("  --platform [chatgpt|claude|claude-projects]")
-    print("  --interpretations")
-    print("  Date filtering (date_from, date_to) in code")
-    print("  --metadata-filter for other fields")
+    print("\nYou can now use these filters and operations:")
+    print("  Filters:")
+    print("    --platform [chatgpt|claude|claude-projects]")
+    print("    --interpretations")
+    print("    Date filtering (date_from, date_to)")
+    print("  Group By:")
+    print("    platform, conversation_id, assistant_model")
+    print("  Order By:")
+    print("    timestamp, platform, conversation_title, turn_number")
 
 
 if __name__ == "__main__":

@@ -359,7 +359,7 @@ class SearchService:
 
             diversity_lambda = filters.mmr_diversity if filters.mmr_diversity else 0.5
 
-            # Search with MMR enabled
+            # Search with MMR enabled (need vectors for similarity calculation)
             results = client.query_points(
                 collection_name=self.collection_name,
                 query=query_dense.tolist(),
@@ -367,6 +367,7 @@ class SearchService:
                 query_filter=query_filter,
                 limit=filters.limit * 2,  # Get more results for diversity selection
                 with_payload=True,
+                with_vectors=True,  # Required for MMR similarity calculations
             ).points
 
             # Apply MMR re-ranking
@@ -386,14 +387,20 @@ class SearchService:
                         # Relevance score
                         relevance = candidate.score
 
+                        # Get candidate vector
+                        candidate_vec = np.array(candidate.vector['dense']) if hasattr(candidate, 'vector') and candidate.vector else None
+
                         # Max similarity to selected documents
-                        max_sim = max([
-                            self._cosine_similarity(
-                                query_dense,
-                                np.array(selected[i].vector if hasattr(selected[i], 'vector') else [])
-                            )
-                            for i in range(len(selected))
-                        ]) if selected else 0
+                        if candidate_vec is not None and len(selected) > 0:
+                            max_sim = max([
+                                self._cosine_similarity(
+                                    candidate_vec,
+                                    np.array(selected[i].vector['dense']) if hasattr(selected[i], 'vector') and selected[i].vector else np.zeros_like(candidate_vec)
+                                )
+                                for i in range(len(selected))
+                            ])
+                        else:
+                            max_sim = 0
 
                         # MMR score: λ * relevance - (1-λ) * max_similarity
                         mmr_score = diversity_lambda * relevance - (1 - diversity_lambda) * max_sim
