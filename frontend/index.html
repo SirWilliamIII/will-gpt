@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WillGPT Search - AI Conversation History</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .search-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #searchInput {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        #searchInput:focus {
+            border-color: #667eea;
+        }
+
+        #searchButton {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #searchButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #searchButton:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .filter-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-wrapper label {
+            margin: 0;
+            cursor: pointer;
+            text-transform: none;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stats-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .stats-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .results {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0,0,0,0.12);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .result-score {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .platform-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .platform-chatgpt { background: #10a37f; color: white; }
+        .platform-claude { background: #cd7f32; color: white; }
+        .platform-claude-projects { background: #7c3aed; color: white; }
+
+        .message-section {
+            margin-bottom: 15px;
+        }
+
+        .message-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .message-content {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .interpretation {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .interpretation-label {
+            font-weight: 600;
+            color: #856404;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .interpretation-text {
+            color: #664d03;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            .filters {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WillGPT Search</h1>
+            <p>Search your AI conversation history across ChatGPT, Claude, and Claude Projects</p>
+        </div>
+
+        <div class="search-card">
+            <div class="search-box">
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Search conversations... (e.g., 'kubernetes deployment')"
+                    autocomplete="off"
+                >
+                <button id="searchButton">
+                    Search
+                </button>
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Search Mode</label>
+                    <select id="searchModeFilter">
+                        <option value="vector" selected>Vector (Hybrid)</option>
+                        <option value="order_by">Order By Field</option>
+                        <option value="groups">Grouped Results</option>
+                        <option value="mmr">MMR (Diverse)</option>
+                        <option value="recommend">Recommend</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Platform</label>
+                    <select id="platformFilter">
+                        <option value="">All Platforms</option>
+                        <option value="chatgpt">ChatGPT</option>
+                        <option value="claude">Claude</option>
+                        <option value="claude-projects">Claude Projects</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Results Limit</label>
+                    <select id="limitFilter">
+                        <option value="5">5 results</option>
+                        <option value="10" selected>10 results</option>
+                        <option value="20">20 results</option>
+                        <option value="50">50 results</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="interpretationsFilter">
+                        <label for="interpretationsFilter">AI Interpretations Only</label>
+                    </div>
+                </div>
+
+                <!-- Advanced filters (conditionally shown) -->
+                <div class="filter-group" id="orderByGroup" style="display: none;">
+                    <label>Order By Field</label>
+                    <select id="orderByField">
+                        <option value="timestamp" selected>Timestamp</option>
+                        <option value="platform">Platform</option>
+                        <option value="conversation_title">Title</option>
+                        <option value="turn_number">Turn Number</option>
+                    </select>
+                </div>
+
+                <div class="filter-group" id="orderDirectionGroup" style="display: none;">
+                    <label>Sort Direction</label>
+                    <select id="orderDirection">
+                        <option value="desc" selected>Descending</option>
+                        <option value="asc">Ascending</option>
+                    </select>
+                </div>
+
+                <div class="filter-group" id="groupByGroup" style="display: none;">
+                    <label>Group By</label>
+                    <select id="groupByField">
+                        <option value="platform" selected>Platform</option>
+                        <option value="conversation_id">Conversation</option>
+                        <option value="assistant_model">Model</option>
+                    </select>
+                </div>
+
+                <div class="filter-group" id="groupSizeGroup" style="display: none;">
+                    <label>Results Per Group</label>
+                    <select id="groupSize">
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                    </select>
+                </div>
+
+                <div class="filter-group" id="mmrDiversityGroup" style="display: none;">
+                    <label>Diversity (0=Relevance, 1=Diverse)</label>
+                    <input type="range" id="mmrDiversity" min="0" max="1" step="0.1" value="0.5">
+                    <span id="mmrDiversityValue">0.5</span>
+                </div>
+
+                <div class="filter-group" id="positiveIdsGroup" style="display: none;">
+                    <label>Positive IDs (comma-separated)</label>
+                    <input type="text" id="positiveIds" placeholder="e.g., 123,456,789" style="padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                </div>
+
+                <div class="filter-group" id="negativeIdsGroup" style="display: none;">
+                    <label>Negative IDs (optional)</label>
+                    <input type="text" id="negativeIds" placeholder="e.g., 321,654" style="padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                </div>
+            </div>
+
+            <div id="recommendHelp" style="display: none; background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; border-radius: 6px; margin-top: 15px; font-size: 14px;">
+                <strong>ℹ️ Recommend Mode:</strong> Enter conversation IDs from search results. Positive IDs are conversations you want more of. Negative IDs (optional) are conversations you want to avoid. Get IDs from the result cards.
+            </div>
+        </div>
+
+        <div id="statsContainer" style="display: none;">
+            <div class="stats">
+                <div class="stats-item">
+                    <span class="stats-label">Query</span>
+                    <span class="stats-value" id="queryText">-</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stats-label">Results</span>
+                    <span class="stats-value" id="resultsCount">0</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stats-label">Time</span>
+                    <span class="stats-value" id="executionTime">0ms</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="results" class="results">
+            <div class="empty-state">
+                <div class="empty-state-icon">🔍</div>
+                <h3>Start Searching</h3>
+                <p>Enter a query to search across your conversation history</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
